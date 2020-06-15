@@ -1,0 +1,24 @@
+all:
+  hosts:
+    ansible
+    ansibleclient
+    puppet
+  children:
+    clients:
+      hosts:
+        # ansibleclient
+        puppet
+      vars:
+        ansible_connection=ssh
+        ansible_user=root
+        ansible_password=password
+    servers:
+      hosts:
+        ansible
+        puppet
+    elkserver:
+      hosts:
+        elk6
+    elkserver7:
+      hosts:
+        elk7

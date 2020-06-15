@@ -1,0 +1,327 @@
+---
+
+- hosts:
+    - elkserver
+  become: true
+  vars_files:
+    - vars.yml
+   
+  tasks:
+  #                   __ _       
+  #   ___ ___  _ __  / _(_) __ _ 
+  #  / __/ _ \| '_ \| |_| |/ _` |
+  # | (_| (_) | | | |  _| | (_| |
+  #  \___\___/|_| |_|_| |_|\__, |
+  #                        |___/ 
+  
+  - name: Disable the firewall
+    service:
+      name: firewalld
+      state: stopped
+      enabled: no
+    tags:
+    - service
+
+  - name : Adding Elasticsearch GPG key
+    rpm_key:
+      state: present
+      key: http://packages.elastic.co/GPG-KEY-elasticsearch
+    tags:
+    - gpgkey
+
+  - name: Adding Elastic search repository
+    yum_repository:
+      name: ElasticsearchRepository6
+      baseurl: https://artifacts.elastic.co/packages/6.x/yum
+      enabled: 1
+      gpgkey: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+      gpgcheck: 1
+      file: elasticsearch_ansible
+      description: ElasticSearch Repository 6.x - ansible managed description
+    tags:
+    - repo
+
+########## 
+
+                                         
+#  _ __  _ __ ___       _ __ ___  __ _ ___ 
+# | '_ \| '__/ _ \_____| '__/ _ \/ _` / __|
+# | |_) | | |  __/_____| | |  __/ (_| \__ \
+# | .__/|_|  \___|     |_|  \___|\__, |___/
+# |_|                               |_|    
+
+  - name: Install network tools
+    yum: 
+      name: net-tools
+      state: present
+    tags:
+    - packages
+
+  - name: Install epel repo
+    yum: 
+      name: epel-release
+      state: present
+    tags:
+    - repo
+    - packages
+
+  - name: Install openjdk8 jre
+    yum:
+      name: java-1.8.0-openjdk
+      state: present
+    tags:
+    - packages
+    
+##########     
+
+#      _           _   _                              _     
+#  ___| | __ _ ___| |_(_) ___ ___  ___  __ _ _ __ ___| |__  
+# / _ \ |/ _` / __| __| |/ __/ __|/ _ \/ _` | '__/ __| '_ \ 
+# | __/ | (_| \__ \ |_| | (__\__ \  __/ (_| | | | (__| | | |
+# \___|_|\__,_|___/\__|_|\___|___/\___|\__,_|_|  \___|_| |_|
+                                                         
+
+  - name: Install elasticsearch
+    yum:
+      name: elasticsearch
+      state: present
+    tags:
+    - packages
+    - elasticsearch
+
+  - name: Configure elasticsearch
+    copy:
+      src: templates/elasticsearch.yml
+      dest: /etc/elasticsearch/elasticsearch.yml
+    tags:
+    - configure
+    - elasticsearch
+
+  - name: Start elasticsearch
+    service:
+      name: elasticsearch
+      state: started
+      enabled: yes
+    tags:
+    - services
+    - elasticsearch
+
+# TESTS
+# curl localhost:9200
+# https://www.ibm.com/support/knowledgecenter/SSBS6K_3.1.2/manage_metrics/log_man_remove_indices.html
+#  delete indexs url>devtools>
+# GET /_cat/indices?v
+# DELETE /filebeat-6.8.9-2020.09.09 2K_FpoxYSrqde94fKt7mrA
+# DELETE /filebeat-6.8.9-2020.05.29 oZKvQTaYTs-ko_U5TQnpMg
+# DELETE /filebeat-6.8.9-2020.09.04 pXdS_XlhTOK0WD4aCBepHg 
+# DELETE /filebeat-6.8.9-2020.05.28
+
+##########
+
+#  _    _ _                       
+# | | _(_) |__   __ _ _ __   __ _ 
+# | |/ / | '_ \ / _` | '_ \ / _` |
+# |   <| | |_) | (_| | | | | (_| |
+# |_|\_\_|_.__/ \__,_|_| |_|\__,_|
+
+  - name: Install kibana
+    yum:
+      name: kibana
+      state: present
+    tags:
+    - packages
+    - kibana
+
+  - name: Configure kibana
+    copy:
+      src: templates/kibana.yml
+      dest: /etc/kibana/kibana.yml
+    tags:
+    - configure
+    - kibana
+
+  - name: Start kibana
+    service:
+      name: kibana
+      state: started
+      enabled: yes
+    tags:
+    - services
+    - kibana
+
+##########
+
+#  _                 _            _     
+# | | ___   __ _ ___| |_ __ _ ___| |__  
+# | |/ _ \ / _` / __| __/ _` / __| '_ \ 
+# | | (_) | (_| \__ \ || (_| \__ \ | | |
+# |_|\___/ \__, |___/\__\__,_|___/_| |_|
+#          |___/                        
+
+
+  - name: Install logstash 
+    yum:
+      name: logstash
+      state: present
+    tags:
+    - packages
+    - logstash
+
+
+##########
+
+#  __ _ _      _                _   
+# / _(_) | ___| |__   ___  __ _| |_ 
+# | |_| | |/ _ \ '_ \ / _ \/ _` | __|
+# |  _| | |  __/ |_) |  __/ (_| | |_ 
+# |_| |_|_|\___|_.__/ \___|\__,_|\__|
+
+
+  - name: Install Filebeat package
+    yum:
+      name: filebeat
+      state: present
+    tags:
+    - packages
+    - filebeat
+
+  - name: Copy the filebeat configuration file
+    copy:
+      src: templates/filebeat.yml
+      dest: /etc/filebeat/filebeat.yml
+    notify:
+    - restart filebeat 
+    tags:
+    - configure
+    - filebeat
+ 
+  - name: Load filebeat module
+    shell:
+      cmd: sudo filebeat modules enable system
+      creates: /etc/filebeat/module-system-loaded
+    tags:
+    - load-modules
+
+  - name: Create system module flag
+    shell:
+      cmd: sudo touch /etc/filebeat/module-system-loaded
+      creates: /etc/filebeat/module-system-loaded
+    tags:
+    - create-flags
+
+  - name: Start and enable the filebeat service
+    service:
+      name: filebeat
+      state: started
+      enabled: yes
+    tags:
+    - services
+    - filebeat
+    
+##########
+
+#  _                     _   _                _             _           _   _      
+# | |__   ___  __ _ _ __| |_| |__   ___  __ _| |_       ___| | __ _ ___| |_(_) ___ 
+# | '_ \ / _ \/ _` | '__| __| '_ \ / _ \/ _` | __|____ / _ \ |/ _` / __| __| |/ __|
+# | | | |  __/ (_| | |  | |_| |_) |  __/ (_| | ||_____|  __/ | (_| \__ \ |_| | (__ 
+# |_| |_|\___|\__,_|_|   \__|_.__/ \___|\__,_|\__|     \___|_|\__,_|___/\__|_|\___|
+
+  - name: Install heartbeat-elastic
+    yum:
+      name: heartbeat-elastic
+      state: present
+    tags:
+    - packages
+    - heartbeat-elastic
+
+  - name: Configure heartbeat-elastic
+    copy:
+      src: templates/elk6/heartbeat.yml
+      dest: /etc/heartbeat/heartbeat.yml
+    notify: 
+    - restart heartbeat-elastic
+    tags:
+    - configure
+    - heartbeat-elastic
+
+  - name: Configure heartbeat-elastic monitors.d
+    copy:
+      src: templates/elk6/icmp.yml
+      dest: /etc/heartbeat/monitors.d/icmp.yml
+    tags:
+    - configure
+    - heartbeat-elastic
+
+  - name: Start heartbeat
+    service:
+      name: heartbeat-elastic
+      state: started
+      enabled: yes
+    tags:
+    - services
+    - heartbeat-elastic
+
+  handlers:
+  - name: restart filebeat
+    service:
+      name: filebeat
+      state: restarted
+  - name: restart heartbeat-elastic
+    service:
+      name: filebeat
+      state: restarted
+          
+##########
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  # - name: Load Index
+  #   shell:
+  #     cmd: sudo filebeat setup --template -E output.logstash.enabled=false -E 'output.elasticsearch.hosts=["127.0.0.1:9200"]'
+  #     creates: /etc/filebeat/index-template-loaded
+  #   tags:
+  #   - load-modules
+
+  # - name: Create Index flag
+  #   shell:
+  #     cmd: sudo touch /etc/filebeat/index-template-loaded
+  #     creates: /etc/filebeat/index-template-loaded
+  #   tags:
+  #   - create-flags
+
+  # - name: Load Dashboard
+  #   shell:
+  #     cmd: sudo filebeat setup -e -E output.logstash.enabled=false -E output.elasticsearch.hosts=['127.0.0.1:9200'] -E setup.kibana.host=0.0.0.0:5601
+  #     creates: /etc/filebeat/dashboard-loaded
+  #   tags:
+  #   - load-dashboard
+
+  # - name: Create dashboard flag
+  #   shell:
+  #     cmd: sudo touch /etc/filebeat/dashboard-loaded
+  #     creates: /etc/filebeat/dashboard-loaded
+  #   tags:
+  #   - create-flags
+
+  # - name: Start filebeat service
+  #   service:
+  #     name: filebeat
+  #     state: started
+  #     enabled: yes
+  #   tags:
+  #   - services
+
